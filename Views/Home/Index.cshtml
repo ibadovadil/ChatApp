@@ -1,0 +1,112 @@
+﻿@{
+    ViewData["Title"] = "Home Page";
+}
+
+<div class="login-area">
+    <div class="form-group">
+        <label>Name</label>
+        <input type="text" class="form-control username" placeholder="Enter Name">
+    </div>
+    <div class="form-group">
+        <label>ImageUrl</label>
+        <input type="text" class="form-control imageUrl" placeholder="Enter Image Url">
+    </div>
+    <button class="btn btn-success mt-3" id="loginBtn">Log In</button>
+</div>
+
+<div class="row d-none chat-area">
+    <div class="col-md-3">
+        <ul class="list-group userList">
+            <li class="list-group-item">
+                <img width="50" />
+                <span>Users</span>
+            </li>
+        </ul>
+    </div>
+    <div class="col-md-9">
+        <div class="d-flex gap-3 mb-4">
+            <textarea class="form-control" id="message-area"></textarea>
+            <button class="btn btn-success" id="sendButton">Send</button>
+        </div>
+        <div>
+            <ul class="list-group messageList"></ul>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/microsoft-signalr/signalr.min.js"></script>
+    <script>
+        const connection = new signalR.HubConnectionBuilder().withUrl("/chat").build();
+
+        async function StartFunction() {
+            try {
+                await connection.start();
+                console.log("SignalR Connected Successfully!");
+            } catch (err) {
+                console.error(err);
+                setTimeout(StartFunction, 5000);
+            }
+        }
+
+        connection.onclose(async () => {
+            await StartFunction();
+        });
+
+        StartFunction();
+
+        let currentUserName = $(".username").val();
+
+        $("#sendButton").click(function () {
+            connection.invoke("SendMessage", currentUserName, $("#message-area").val());
+            $("#message-area").val("");
+        });
+
+        $("#loginBtn").click(function () {
+            connection.invoke("Register", $(".username").val(), $(".imageUrl").val());
+            localStorage.setItem("username", $(".username").val());
+            $(".login-area").hide();
+            $(".chat-area").removeClass("d-none");
+        });
+
+        connection.on("GetUsers", (users) => {
+            $(".userList").empty();
+            users.forEach((u) => {
+                if (u.Username === localStorage.getItem("username")) {
+                    $(".userList").prepend(`
+                        <li class="mt-1 list-group-item border" style="background-color: green;">
+                            <img src='${u.imageUrl}' width="50" />
+                            <span>${u.username}</span>
+                        </li>
+                        <hr>
+                    `);
+                } else {
+                    $(".userList").append(`
+                        <li class="mt-1 list-group-item">
+                            <img src='${u.imageUrl}' width="50" />
+                            <span>${u.username}</span>
+                        </li>
+                    `);
+                }
+            });
+        });
+
+        connection.on("RecievedMessage", (Uname, message) => {
+            if (Uname === localStorage.getItem("username")) {
+                $(".messageList").append(`
+                    <li class="list-group-item bg-success">
+                        <small class="d-block text-end">${Uname}</small>
+                        <p class="text-end w-100">${message}</p>
+                    </li>
+                `);
+            } else {
+                $(".messageList").append(`
+                    <li class="list-group-item">
+                        <small class="w-100">${Uname}</small>
+                        <p class="w-100">${message}</p>
+                    </li>
+                `);
+            }
+        });
+    </script>
+}
